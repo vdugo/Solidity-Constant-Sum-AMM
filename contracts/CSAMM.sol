@@ -149,8 +149,33 @@ contract CSAMM
 
     }
 
-    function removeLiquidity() external
+    function removeLiquidity(uint256 _shares) external returns (uint256 d0, uint256 d1)
     {
+        /*
+        a = amount in
+        L = total liquidity
+        s = shares to mint
+        T = total supply
 
+        a / L = s / T
+
+        a = L * s / T
+        = (reserve0 + reserve1) * s / T
+        */
+        d0 = (reserve0 * _shares) / totalSupply;
+        d1 = (reserve1 * _shares) / totalSupply;
+
+        _burn(msg.sender, _shares);
+        _update(reserve0 - d0, reserve1 - d1);
+
+        if (d0 > 0)
+        {
+            token0.transfer(msg.sender, d0);
+        }
+
+        if (d1 > 0)
+        {
+            token1.transfer(msg.sender, d1);
+        }
     }
 }
