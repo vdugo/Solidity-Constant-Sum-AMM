@@ -91,41 +91,24 @@ contract CSAMM
         "invalid token for this pool"
         );
 
-        uint256 amountIn;
+        bool isToken0 = _tokenIn == address(token0);
+        (IERC20 tokenIn, IERC20 tokenOut, uint256 resIn, uint256 resOut) 
+        = 
+        isToken0 ? (token0, token1, reserve0, reserve1) : (token1, token0, reserve1, reserve0);
 
-        if (_tokenIn == address(token0))
-        {
-            token0.transferFrom(msg.sender, address(this), _amountIn);
-            amountIn = token0.balanceOf(address(this)) - reserve0;
-        }
-        else
-        {
-            token1.transferFrom(msg.sender, address(this), _amountIn);
-            amountIn = token1.balanceOf(address(this)) - reserve1;
-        }
+        tokenIn.transferFrom(msg.sender, address(this), _amountIn);
+        uint256 amountIn = tokenIn.balanceOf(address(this)) - resIn;
+
         // smart contract takes a 0.3% fee
         amountOut = (amountIn * 997) / 1000;
-        // if the token coming in is token0 then reserve0 increased by _amountIn
-        // and reserve1 decreased by amountOut
-        if (_tokenIn == address(token0))
-        {
-            _update(reserve0 + _amountIn, reserve1 - amountOut);
-        }
-        // else reserve0 decreased by amountOut and reserve1 increased
-        // by _amountIn
-        else
-        {
-            _update(reserve0 - amountOut, reserve1 + _amountIn);
-        }
+        
+        // update reserve0 and reserve1
+        (uint256 res0, uint256 res1) = isToken0
+        ? (resIn + _amountIn, resOut - amountOut)
+        : (resOut - amountOut, resIn + _amountIn);
+        _update(res0, res1);
 
-        if (_tokenIn == address(token0))
-        {
-            token1.transfer(msg.sender, amountOut);
-        }
-        else
-        {
-            token0.transfer(msg.sender, amountOut);
-        }
+        tokenOut.transfer(msg.sender, amountOut);
     }
 
     function addLiquidity() external
