@@ -3,6 +3,25 @@ pragma solidity ^0.8.13;
 
 import "./IERC20.sol";
 
+/**
+ * @dev A Constant Sum Automated Market Maker contract for ERC-20 tokens.
+ * An automated market maker (AMM) is a decentralized exchange where the 
+ * price of tokens is determined by a mathematical equation defined inside
+ * the smart contract. This is in contrast to a centralized exchange, where the
+ * price of the tokens is determined by the traders or centralized entities.
+ * There are 3 fundamental things you can do with this AMM:
+ *  1. Add Liquidity - liquidity providers (users) can deposit tokens into the trading
+ *  pair pool. When they add liquidity to the pool, they receive newly minted shares 
+ *  which are units that determine what percentage of the liquidity pool they own.
+ *  2. Swap Tokens - users can swap one token for another
+ *  3. Remove liquidity - users can redeem their shares for their tokens back, when they
+ *  remove liquidity from the pool, an amount of their shares proportional to how much
+ *  liquidity they removed are burned.
+ * The price of the tokens in this contract is determined by the formula:
+ * X + Y = K
+ * Where X is the amount of token A in the AMM and Y is the amount of token B in the AMM
+ * when you add these 2 amount of tokens together, you get a constant K.
+ */
 contract CSAMM
 {
     /**
@@ -31,21 +50,82 @@ contract CSAMM
         token1 = IERC20(_token1);
     }
 
+    /**
+     * @dev private function to mint shares to the liquidity provider (user)
+     * @param _to The user's address where the shares will be minted to
+     * @param _amount The amount of shares to mint
+     */
     function _mint(address _to, uint256 _amount) private
     {
         balanceOf[_to] += _amount;
         totalSupply += _amount;
     }
-
+    /**
+     * @dev private function to burn shares from the user that withdraws
+     * @param _from The user's address where the shares will be burned from
+     * @param _amount The amount of shares to burn
+     */
     function _burn(address _from, uint256 _amount) private
     {
         balanceOf[_from] -= _amount;
         totalSupply -= _amount;
     }
-
-    function swap() external
+    /**
+     * @dev private function to update the reserves when a user makes a swap
+     * @param _res0 The new reserve 0
+     * @param _res1 The new reserve 1
+     */
+    function _update(uint256 _res0, uint256 _res1) private
     {
+        reserve0 = _res0;
+        reserve1 = _res1;
+    }
+    /**
+     * @dev function to swap one token for another from the liquidity pool
+     * 
+     */
+    function swap(address _tokenIn, uint256 _amountIn) external returns(uint256 amountOut)
+    {
+        require(
+        _tokenIn == address(token0) || _tokenIn == address(token1),
+        "invalid token for this pool"
+        );
 
+        uint256 amountIn;
+
+        if (_tokenIn == address(token0))
+        {
+            token0.transferFrom(msg.sender, address(this), _amountIn);
+            amountIn = token0.balanceOf(address(this)) - reserve0;
+        }
+        else
+        {
+            token1.transferFrom(msg.sender, address(this), _amountIn);
+            amountIn = token1.balanceOf(address(this)) - reserve1;
+        }
+        // smart contract takes a 0.3% fee
+        amountOut = (amountIn * 997) / 1000;
+        // if the token coming in is token0 then reserve0 increased by _amountIn
+        // and reserve1 decreased by amountOut
+        if (_tokenIn == address(token0))
+        {
+            _update(reserve0 + _amountIn, reserve1 - amountOut);
+        }
+        // else reserve0 decreased by amountOut and reserve1 increased
+        // by _amountIn
+        else
+        {
+            _update(reserve0 - amountOut, reserve1 + _amountIn);
+        }
+
+        if (_tokenIn == address(token0))
+        {
+            token1.transfer(msg.sender, amountOut);
+        }
+        else
+        {
+            token0.transfer(msg.sender, amountOut);
+        }
     }
 
     function addLiquidity() external
