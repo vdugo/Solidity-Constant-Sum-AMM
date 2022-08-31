@@ -37,7 +37,7 @@ contract CSAMM
     // keeps track of the amount of token1 in this contract
     uint256 public reserve1;
 
-    // keeps track of the entire amount of tokens in the contract
+    // keeps track of the entire amount of shares in the contract
     uint256 public totalSupply;
 
     // mapping from user to the amount of shares of the liquidity pool they currently have
@@ -111,8 +111,41 @@ contract CSAMM
         tokenOut.transfer(msg.sender, amountOut);
     }
 
-    function addLiquidity() external
+    function addLiquidity(uint256 _amount0, uint256 _amount1) external returns (uint256 shares)
     {
+        token0.transferFrom(msg.sender, address(this), _amount0);
+        token1.transferFrom(msg.sender, address(this), _amount1);
+
+        uint256 bal0 = token0.balanceOf(address(this));
+        uint256 bal1 = token1.balanceOf(address(this));
+
+        // the actual amounts that came in
+        uint256 d0 = bal0 - reserve0;
+        uint256 d1 = bal1 - reserve1;
+
+        /*
+        a = amount in
+        L = total liquidity
+        s = shares to mint
+        T = total supply
+
+        (L + a) / L = (T + s) / T
+
+        s = a * T / L
+        */
+        if (totalSupply == 0)
+        {
+            // totalSupply will be 0 for the first person to deposit liquidity
+            shares = d0 + d1;
+        }
+        else
+        {
+            shares = ((d0 + d1) * totalSupply) / (reserve0 + reserve1);
+        }
+        require(shares > 0, "shares = 0");
+        _mint(msg.sender, shares);
+
+        _update(bal0, bal1);
 
     }
 
